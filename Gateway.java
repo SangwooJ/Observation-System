@@ -1,97 +1,103 @@
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.*;
 
-public class Gateway extends Thread{
+/**
+ * 
+ */
+public class Gateway extends Thread {
 
-	public Socket socket;
-	public Node node;
+	Socket socket;
 	private InputStream is;
 	private OutputStream os;
 	private DataInputStream dis;
 	private DataOutputStream dos;
+	public Client_Controller contrl;
 	
-	public Gateway(Socket socket,Node node) {
-	     this.socket = socket;
-	     this.node = node; 
-	     try {
-	    	 is = socket.getInputStream();
-			 os = socket.getOutputStream();
-		     dis = new DataInputStream(is);
-		     dos = new DataOutputStream(os);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	    start();
-	}
+    public Gateway(Client_Controller c) {
+    	//3.connection
+    	String _ip = "127.0.0.1";
+    	int _port = 9999;
+    	contrl = c;
+    	try {
+			socket = new Socket(_ip,_port);
+			is = socket.getInputStream();
+			os = socket.getOutputStream();
+			dis = new DataInputStream(is);
+			dos = new DataOutputStream(os);
 
-	public void closeGateWay(){
-		System.out.println("노드 종료");
-		node.alive_node = false;
-		try {
-			dos.close();
-			dis.close();
-			socket.close();
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			System.exit(0);
+			e.printStackTrace();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
+			System.out.println("접속실패");
+			System.exit(0);
 			e.printStackTrace();
 		}
-		
-	}
-    public void sendCmd(String type, String cmd) {
+    			
+    }
+
+    public void sendPL(List<String> list ) {
         // TODO implement here
     	try {
-			dos.writeUTF(parseCmd(type,cmd));
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-    }
-//클라이언트로부터 프로세스 리스트를 전송하는 스레드
-    public void run() {
-       // TODO implement here
-    	try {
-	    	while(true){
-	    		System.out.println("Node GateWay");
-	    		String str;
-	    		
-	    			List<String> processList = new ArrayList<String>();
-	    			//클라이언트의 전송요청
-	    			str=dis.readUTF();
-	    			//클라이언트 프로세스리스트가 몇줄인지 읽어온다.    		
-	    			int n = getLineNum(str);
-	    			
-	    			for(int i =0 ;i<n;i++){
-	    				String s =parsePL(dis.readUTF());
-	    				processList.add(s);
-	    			}
-	    			//노드에 저장
-	    			node.savePL(processList);
-	    		
+    		//보낼 프로세스리스트의 라인 수
+    		dos.writeUTF(Integer.toString(list.size()));
+	    	for(int i =0 ; i<list.size(); i++){
+	    		//프로토콜 생성 추가
+				dos.writeUTF(list.get(i));
 	    	}
     	} catch (IOException e) {
-    		System.out.println("에러발생");
-			closeGateWay();
+			// TODO Auto-generated catch block
+			
+    		try {
+				dos.close();
+				dis.close();
+				socket.close();
+				System.exit(0);
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
 		}
     }
-    
-    public String parsePL(String str) {
-    	String data[] = str.split(" +");
-    	String result = "Process Name: " + data[0] + " Memory: " + data[4] + " K";
-		return result;
-    }
 
-    public int getLineNum(String str) {
-    	int n = 0;
-    	//파싱을 합니다.
-    	n=Integer.parseInt(str);
-    	return n;
-    }
-    public String parseCmd(String type,String cmd) {
+    public void run() {
         // TODO implement here
-    	return type+"+"+cmd;
+    	while(true){
+    		receive();
+    	}
     }
-
+    public void receive(){
+    	try {
+			String cmd = dis.readUTF();
+			System.out.println(cmd);
+			
+			StringTokenizer s = new StringTokenizer(cmd,"+");
+			
+			String cmd_type = s.nextToken();
+			String cmd_msg  = s.nextToken();
+			
+			contrl.transCmd(cmd_type, cmd_msg);
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			try {
+				dos.close();
+				dis.close();
+				socket.close();
+				System.exit(0);
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				System.out.println("error");
+			}
+		}
+    }
 }
